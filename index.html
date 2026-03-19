@@ -80,8 +80,8 @@
                 if (!window.crossOriginIsolated) {
                     detailEl.textContent = "Enabling cross-origin isolation...";
 
-                    const coopReg = await navigator.serviceWorker.register("/coop-coep-sw.js", {
-                        scope: "/",
+                    const coopReg = await navigator.serviceWorker.register("./coop-coep-sw.js", {
+                        scope: "./",
                     });
 
                     // Wait for it to activate
@@ -125,9 +125,9 @@
                 // ==============================================
 
                 // Dynamically load UV bundle, config, and bare-mux
-                await loadScript("/stuf/uv.bundle.js");
-                await loadScript("/stuf/uv.config.js");
-                await loadScript("/stuf/baremux/index.js");
+                await loadScript("./stuf/uv.bundle.js");
+                await loadScript("./stuf/uv.config.js");
+                await loadScript("./stuf/baremux/index.js");
 
                 // Parse ?site= parameter
                 const params = new URLSearchParams(window.location.search);
@@ -145,14 +145,14 @@
                 // Set up Epoxy transport via bare-mux
                 detailEl.textContent = "Setting up Epoxy transport...";
 
-                const connection = new BareMux.BareMuxConnection("/stuf/baremux/worker.js");
+                const connection = new BareMux.BareMuxConnection("./stuf/baremux/worker.js");
                 const wispUrl = "wss://fern.best/wisp/";
-                await connection.setTransport("/stuf/epoxy/index.mjs", [{ wisp: wispUrl }]);
+                await connection.setTransport("./stuf/epoxy/index.mjs", [{ wisp: wispUrl }]);
 
                 // Register UV service worker
                 detailEl.textContent = "Registering service worker...";
 
-                const reg = await navigator.serviceWorker.register("/stuf/sw.js", {
+                const reg = await navigator.serviceWorker.register("./stuf/sw.js", {
                     scope: self.__uv$config.prefix,
                 });
 
