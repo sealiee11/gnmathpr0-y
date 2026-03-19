@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #fc2651;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #fff;
+            flex-direction: column;
+            gap: 16px;
+        }
+        #status {
+            font-size: 4rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+        #detail {
+            font-size: 1.1rem;
+            opacity: 0.85;
+        }
+        #error {
+            display: none;
+            max-width: 600px;
+            text-align: center;
+            background: rgba(0,0,0,0.25);
+            padding: 20px 28px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Loading...</div>
+    <div id="detail">Preparing proxy...</div>
+    <div id="error"></div>
+
+    <script>
+        // ==============================================
+        // PHASE 1: Register COOP/COEP service worker
+        // This injects Cross-Origin-Opener-Policy and
+        // Cross-Origin-Embedder-Policy headers into all
+        // responses so bare-mux's SharedWorker works on
+        // static hosting (S3, GitHub Pages, etc).
+        // ==============================================
+        (async () => {
+            const statusEl = document.getElementById("status");
+            const detailEl = document.getElementById("detail");
+            const errorEl  = document.getElementById("error");
+
+            function showError(msg) {
+                statusEl.textContent = "Error";
+                detailEl.style.display = "none";
+                errorEl.style.display = "block";
+                errorEl.textContent = msg;
+            }
+
+            try {
+                if (!("serviceWorker" in navigator)) {
+                    showError("Service workers not supported. Use a modern browser with HTTPS.");
+                    return;
+                }
+
+                // Step 1: Register the COOP/COEP header-injection SW
+                // This must be at root scope to intercept all requests
+                if (!window.crossOriginIsolated) {
+                    detailEl.textContent = "Enabling cross-origin isolation...";
+
+                    const coopReg = await navigator.serviceWorker.register("/coop-coep-sw.js", {
+                        scope: "/",
+                    });
+
+                    // Wait for it to activate
+                    if (!coopReg.active || coopReg.active.state !== "activated") {
+                        const coopSW = coopReg.installing || coopReg.waiting || coopReg.active;
+                        if (coopSW && coopSW.state !== "activated") {
+                            await new Promise((resolve, reject) => {
+                                coopSW.addEventListener("statechange", function handler() {
+                                    if (coopSW.state === "activated") {
+                                        coopSW.removeEventListener("statechange", handler);
+                                        resolve();
+                                    } else if (coopSW.state === "redundant") {
+                                        coopSW.removeEventListener("statechange", handler);
+                                        reject(new Error("COOP/COEP service worker became redundant."));
+                                    }
+                                });
+                                setTimeout(() => reject(new Error("COOP/COEP SW activation timed out.")), 10000);
+                            });
+                        }
+                    }
+
+                    // Reload the page so the COOP/COEP headers take effect
+                    // The SW needs to be controlling the page for headers to apply
+                    if (!navigator.serviceWorker.controller) {
+                        detailEl.textContent = "Reloading with isolation headers...";
+                        location.reload();
+                        return;
+                    }
+
+                    // If still not isolated after reload, we need one more
+                    if (!window.crossOriginIsolated) {
+                        detailEl.textContent = "Applying isolation...";
+                        location.reload();
+                        return;
+                    }
+                }
+
+                // ==============================================
+                // PHASE 2: Now we're cross-origin isolated.
+                // Load UV scripts and set up the proxy.
+                // ==============================================
+
+                // Dynamically load UV bundle, config, and bare-mux
+                await loadScript("/stuf/uv.bundle.js");
+                await loadScript("/stuf/uv.config.js");
+                await loadScript("/stuf/baremux/index.js");
+
+                // Parse ?site= parameter
+                const params = new URLSearchParams(window.location.search);
+                let site = params.get("site");
+
+                if (!site) {
+                    showError("No site specified. Use ?site=https://example.com");
+                    return;
+                }
+
+                if (!site.startsWith("http://") && !site.startsWith("https://")) {
+                    site = "https://" + site;
+                }
+
+                // Set up Epoxy transport via bare-mux
+                detailEl.textContent = "Setting up Epoxy transport...";
+
+                const connection = new BareMux.BareMuxConnection("/stuf/baremux/worker.js");
+                const wispUrl = "wss://fern.best/wisp/";
+                await connection.setTransport("/stuf/epoxy/index.mjs", [{ wisp: wispUrl }]);
+
+                // Register UV service worker
+                detailEl.textContent = "Registering service worker...";
+
+                const reg = await navigator.serviceWorker.register("/stuf/sw.js", {
+                    scope: self.__uv$config.prefix,
+                });
+
+                // Wait for UV SW to activate
+                detailEl.textContent = "Waiting for service worker...";
+
+                if (!(reg.active && reg.active.state === "activated")) {
+                    const uvSW = reg.installing || reg.waiting || reg.active;
+                    if (uvSW && uvSW.state !== "activated") {
+                        await new Promise((resolve, reject) => {
+                            uvSW.addEventListener("statechange", function handler() {
+                                if (uvSW.state === "activated") {
+                                    uvSW.removeEventListener("statechange", handler);
+                                    resolve();
+                                } else if (uvSW.state === "redundant") {
+                                    uvSW.removeEventListener("statechange", handler);
+                                    reject(new Error("UV service worker became redundant."));
+                                }
+                            });
+                            setTimeout(() => reject(new Error("UV SW activation timed out (15s).")), 15000);
+                        });
+                    }
+                }
+
+                // Redirect to proxied URL
+                detailEl.textContent = "Redirecting...";
+                location.href = self.__uv$config.prefix + self.__uv$config.encodeUrl(site);
+
+            } catch (err) {
+                console.error("UV Loader Error:", err);
+                showError("Failed to initialize: " + err.message);
+            }
+        })();
+
+        // Helper: load a script tag and wait for it
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const s = document.createElement("script");
+                s.src = src;
+                s.onload = resolve;
+                s.onerror = () => reject(new Error("Failed to load: " + src));
+                document.head.appendChild(s);
+            });
+        }
+    </script>
+</body>
+</html>
