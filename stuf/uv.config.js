@@ -1,6 +1,6 @@
 /*global Ultraviolet*/
 self.__uv$config = {
-    prefix: "/gh/sealiee11/gnmathpr0-y/stuf/service/",
+    prefix: "/stuf/service/",
     encodeUrl: Ultraviolet.codec.xor.encode,
     decodeUrl: Ultraviolet.codec.xor.decode,
     handler: "/stuf/uv.handler.js",
