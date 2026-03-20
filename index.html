@@ -74,9 +74,11 @@
                 if (!window.crossOriginIsolated) {
                     detailEl.textContent = "Enabling cross-origin isolation...";
 
-                    const coopReg = await navigator.serviceWorker.register("./coop-coep-sw.js", {
-                        scope: "./",
-                    });
+const currentDir = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
+
+const coopReg = await navigator.serviceWorker.register("./coop-coep-sw.js", {
+    scope: currentDir,
+});
 
                     // Wait for it to activate
                     if (!coopReg.active || coopReg.active.state !== "activated") {
