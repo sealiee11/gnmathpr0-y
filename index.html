@@ -75,9 +75,13 @@
                     detailEl.textContent = "Enabling cross-origin isolation...";
 
 const currentDir = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
+const swResponse = await fetch("https://cdn.jsdelivr.net/gh/sealiee11/gnmathpr0-y@main/coop-coep-sw.js");
+const swCode = await swResponse.text();
+const blob = new Blob([swCode], { type: "application/javascript" });
+const swUrl = URL.createObjectURL(blob);
 
-const coopReg = await navigator.serviceWorker.register("./coop-coep-sw.js", {
-    scope: currentDir,
+const coopReg = await navigator.serviceWorker.register(swUrl, {
+    scope: "/",
 });
 
                     // Wait for it to activate
@@ -148,9 +152,14 @@ const coopReg = await navigator.serviceWorker.register("./coop-coep-sw.js", {
                 // Register UV service worker
                 detailEl.textContent = "Registering service worker...";
 
-                const reg = await navigator.serviceWorker.register("./stuf/sw.js", {
-                    scope: currentdir + self.__uv$config.prefix,
-                });
+const swResponse2 = await fetch("https://cdn.jsdelivr.net/gh/sealiee11/gnmathpr0-y@main/stuf/sw.js");
+const swCode2 = await swResponse2.text();
+const blob2 = new Blob([swCode2], { type: "application/javascript" });
+const swUrl2 = URL.createObjectURL(blob2);
+
+const reg = await navigator.serviceWorker.register(swUrl2, {
+    scope: currentdir + self.__uv$config.prefix,
+});
 
                 // Wait for UV SW to activate
                 detailEl.textContent = "Waiting for service worker...";
