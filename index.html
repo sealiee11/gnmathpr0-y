@@ -149,7 +149,7 @@ const coopReg = await navigator.serviceWorker.register("./coop-coep-sw.js", {
                 detailEl.textContent = "Registering service worker...";
 
                 const reg = await navigator.serviceWorker.register("./stuf/sw.js", {
-                    scope: self.__uv$config.prefix,
+                    scope: currentdir + self.__uv$config.prefix,
                 });
 
                 // Wait for UV SW to activate
