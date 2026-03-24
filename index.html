@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-<base href="https://cdn.jsdelivr.net/gh/sealiee11/gnmathpr0-y@main/">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Loading...</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @font-face {
+    font-family: 'mc';
+    src: url('https://cdn.jsdelivr.net/gh/sealiee11/gnmathstuff@main/minecraft.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+}
         body {
             background: #fc2651;
             display: flex;
@@ -22,15 +23,9 @@
             flex-direction: column;
             gap: 16px;
         }
-        #status {
-            font-size: 4rem;
-            font-weight: 700;
-            letter-spacing: 2px;
-        }
-        #detail {
-            font-size: 1.1rem;
-            opacity: 0.85;
-        }
+        #logo { font-family: 'mc', monospace; font-size: 5rem; font-weight: 700; letter-spacing: 2px; }
+        #status { font-size: 4rem; font-weight: 700; letter-spacing: 2px; }
+        #detail { font-size: 1.1rem; opacity: 0.85; }
         #error {
             display: none;
             max-width: 600px;
@@ -46,152 +41,89 @@
     </style>
 </head>
 <body>
+    <div id="logo">gn-math</div>
     <div id="status">Loading...</div>
     <div id="detail">Preparing proxy...</div>
     <div id="error"></div>
-
     <script>
+        const CDN = "https://cdn.jsdelivr.net/gh/sealiee11/gnmathpr0-y@main/";
+
+        const statusEl = document.getElementById("status");
+        const detailEl = document.getElementById("detail");
+        const errorEl  = document.getElementById("error");
+
+        const showError = msg => {
+            statusEl.textContent = "Error";
+            detailEl.style.display = "none";
+            errorEl.style.display = "block";
+            errorEl.textContent = msg;
+        };
+
+        const setDetail = msg => { detailEl.textContent = msg; };
+
+        const loadScript = src => new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = () => reject(new Error("Failed to load: " + src));
+            document.head.appendChild(s);
+        });
+
+        const waitForSW = (sw, state, ms) => new Promise((resolve, reject) => {
+            if (sw.state === state) { resolve(); return; }
+            const t = setTimeout(() => reject(new Error("SW timeout")), ms);
+            sw.addEventListener("statechange", function h() {
+                if (sw.state === state) { clearTimeout(t); sw.removeEventListener("statechange", h); resolve(); }
+                else if (sw.state === "redundant") { clearTimeout(t); sw.removeEventListener("statechange", h); reject(new Error("SW redundant")); }
+            });
+        });
+
+        const getActiveSW = async (reg, ms) => {
+            if (reg.active) return reg.active;
+            const sw = reg.installing || reg.waiting;
+            if (!sw) throw new Error("No SW in registration");
+            await waitForSW(sw, "activated", ms);
+            return reg.active;
+        };
+
         (async () => {
-            const statusEl = document.getElementById("status");
-            const detailEl = document.getElementById("detail");
-            const errorEl  = document.getElementById("error");
-
-            function showError(msg) {
-                statusEl.textContent = "Error";
-                detailEl.style.display = "none";
-                errorEl.style.display = "block";
-                errorEl.textContent = msg;
-            }
-
             try {
                 if (!("serviceWorker" in navigator)) {
-                    showError("Service workers not supported. Use a modern browser with HTTPS.");
+                    showError("Service workers not supported. Use a modern browser over HTTPS.");
                     return;
                 }
 
-                // Step 1: Register the COOP/COEP header-injection SW
-                // This must be at root scope to intercept all requests
-                if (!window.crossOriginIsolated) {
-                    detailEl.textContent = "Enabling cross-origin isolation...";
+                setDetail("Loading scripts...");
+                await loadScript(CDN + "stuf/uv.bundle.js");
+                await loadScript(CDN + "stuf/uv.config.js");
+                await loadScript(CDN + "stuf/baremux/index.js");
 
-const currentDir = location.pathname.substring(0, location.pathname.lastIndexOf('/') + 1);
+                if (typeof self.__uv$config === "undefined") { showError("UV config failed to load."); return; }
+                if (typeof BareMux === "undefined") { showError("BareMux failed to load."); return; }
 
-const coopReg = await navigator.serviceWorker.register("./coop-coep-sw.js", {
-    scope: currentDir,
-});
-
-                    // Wait for it to activate
-                    if (!coopReg.active || coopReg.active.state !== "activated") {
-                        const coopSW = coopReg.installing || coopReg.waiting || coopReg.active;
-                        if (coopSW && coopSW.state !== "activated") {
-                            await new Promise((resolve, reject) => {
-                                coopSW.addEventListener("statechange", function handler() {
-                                    if (coopSW.state === "activated") {
-                                        coopSW.removeEventListener("statechange", handler);
-                                        resolve();
-                                    } else if (coopSW.state === "redundant") {
-                                        coopSW.removeEventListener("statechange", handler);
-                                        reject(new Error("COOP/COEP service worker became redundant."));
-                                    }
-                                });
-                                setTimeout(() => reject(new Error("COOP/COEP SW activation timed out.")), 10000);
-                            });
-                        }
-                    }
-
-                    // Reload the page so the COOP/COEP headers take effect
-                    // The SW needs to be controlling the page for headers to apply
-                    if (!navigator.serviceWorker.controller) {
-                        detailEl.textContent = "Reloading with isolation headers...";
-                        location.reload();
-                        return;
-                    }
-
-                    // If still not isolated after reload, we need one more
-                    if (!window.crossOriginIsolated) {
-                        detailEl.textContent = "Applying isolation...";
-                        location.reload();
-                        return;
-                    }
-                }
-
-                // ==============================================
-                // PHASE 2: Now we're cross-origin isolated.
-                // Load UV scripts and set up the proxy.
-                // ==============================================
-
-                // Dynamically load UV bundle, config, and bare-mux
-                await loadScript("./stuf/uv.bundle.js");
-                await loadScript("./stuf/uv.config.js");
-                await loadScript("./stuf/baremux/index.js");
-
-                // Parse ?site= parameter
-                const params = new URLSearchParams(window.location.search);
+                const params = new URLSearchParams(location.search);
                 let site = params.get("site");
+                if (!site) { showError("No site specified.\n\nUsage: ?site=https://example.com"); return; }
+                if (!site.startsWith("http://") && !site.startsWith("https://")) site = "https://" + site;
 
-                if (!site) {
-                    showError("No site specified. Use ?site=https://example.com");
-                    return;
-                }
+                setDetail("Setting up transport...");
+                const conn = new BareMux.BareMuxConnection(CDN + "stuf/baremux/worker.js");
+                await conn.setTransport(CDN + "stuf/epoxy/index.mjs", [{ wisp: "wss://08f12008-a184-498f-a115-47721cc027a3.ixl.college/wisp/" }]);
 
-                if (!site.startsWith("http://") && !site.startsWith("https://")) {
-                    site = "https://" + site;
-                }
+                setDetail("Registering service worker...");
+                const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
 
-                // Set up Epoxy transport via bare-mux
-                detailEl.textContent = "Setting up Epoxy transport...";
+                setDetail("Waiting for service worker...");
+                await getActiveSW(reg, 15000);
 
-                const connection = new BareMux.BareMuxConnection("./stuf/baremux/worker.js");
-                const wispUrl = "wss://08f12008-a184-498f-a115-47721cc027a3.ixl.college/wisp/";
-                await connection.setTransport("./stuf/epoxy/index.mjs", [{ wisp: wispUrl }]);
-
-                // Register UV service worker
-                detailEl.textContent = "Registering service worker...";
-
-                const reg = await navigator.serviceWorker.register("./stuf/sw.js", {
-                    scope: self.__uv$config.prefix,
-                });
-
-                // Wait for UV SW to activate
-                detailEl.textContent = "Waiting for service worker...";
-
-                if (!(reg.active && reg.active.state === "activated")) {
-                    const uvSW = reg.installing || reg.waiting || reg.active;
-                    if (uvSW && uvSW.state !== "activated") {
-                        await new Promise((resolve, reject) => {
-                            uvSW.addEventListener("statechange", function handler() {
-                                if (uvSW.state === "activated") {
-                                    uvSW.removeEventListener("statechange", handler);
-                                    resolve();
-                                } else if (uvSW.state === "redundant") {
-                                    uvSW.removeEventListener("statechange", handler);
-                                    reject(new Error("UV service worker became redundant."));
-                                }
-                            });
-                            setTimeout(() => reject(new Error("UV SW activation timed out (15s).")), 15000);
-                        });
-                    }
-                }
-
-                // Redirect to proxied URL
-                detailEl.textContent = "Redirecting...";
+                setDetail("Redirecting...");
                 location.href = self.__uv$config.prefix + self.__uv$config.encodeUrl(site);
 
             } catch (err) {
-                console.error("UV Loader Error:", err);
-                showError("Failed to initialize: " + err.message);
+                console.error(err);
+                showError("Error: " + err.message);
             }
         })();
-
-        // Helper: load a script tag and wait for it
-        function loadScript(src) {
-            return new Promise((resolve, reject) => {
-                const s = document.createElement("script");
-                s.src = src;
-                s.onload = resolve;
-                s.onerror = () => reject(new Error("Failed to load: " + src));
-                document.head.appendChild(s);
-            });
-        }    </script>
+    </script>
 </body>
 </html>
