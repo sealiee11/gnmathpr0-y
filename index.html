@@ -108,7 +108,7 @@
 
                 setDetail("Setting up transport...");
                 const conn = new BareMux.BareMuxConnection(CDN + "stuf/baremux/worker.js");
-                await conn.setTransport(CDN + "stuf/epoxy/index.mjs", [{ wisp: "wss://08f12008-a184-498f-a115-47721cc027a3.ixl.college/wisp/" }]);
+                await conn.setTransport(CDN + "stuf/epoxy/index.mjs", [{ wisp: "wss://luminal.cc/wisp/" }]);
 
                 setDetail("Registering service worker...");
                 const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
