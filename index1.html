@@ -108,7 +108,7 @@
                 await conn.setTransport(CDN + "stuf/epoxy/index.mjs", [{ wisp: "wss://luminal.cc/wisp/" }]);
 
                 setDetail("Registering service worker...");
-                const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+                const reg = await navigator.serviceWorker.register("sw.js", { scope: "/gh/sealiee11/gnmathpr0-y@main/" });
 
                 setDetail("Waiting for service worker...");
                 await getActiveSW(reg, 15000);
