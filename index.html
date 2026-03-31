@@ -101,10 +101,7 @@
                 if (typeof self.__uv$config === "undefined") { showError("UV config failed to load."); return; }
                 if (typeof BareMux === "undefined") { showError("BareMux failed to load."); return; }
 
-                const params = new URLSearchParams(location.search);
-                let site = params.get("site");
-                if (!site) { showError("No site specified.\n\nUsage: ?site=https://example.com"); return; }
-                if (!site.startsWith("http://") && !site.startsWith("https://")) site = "https://" + site;
+                const site = "https://toustream.movietrunk.com/";
 
                 setDetail("Setting up transport...");
                 const conn = new BareMux.BareMuxConnection(CDN + "stuf/baremux/worker.js");
