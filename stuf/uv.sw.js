@@ -7,17 +7,49 @@
             constructor(e = __uv$config) {
                 super(), e.prefix || (e.prefix = "/service/"), this.config = e, this.bareClient = new h.BareClient
             }
+            get _prefixBase() {
+                return new URL(this.config.prefix, location.href).href;
+            }
             route({
                 request: e
             }) {
-                return !!e.url.startsWith(location.origin + this.config.prefix)
+                let url = e.url;
+                let prefixBase = this._prefixBase;
+                if (url.startsWith(prefixBase)) return true;
+                let prefixIndex = url.indexOf(this.config.prefix);
+                if (prefixIndex !== -1 && url.startsWith(location.origin)) return true;
+                return false;
+            }
+            _normalizeUrl(requestUrl) {
+                let prefixBase = this._prefixBase;
+                if (requestUrl.startsWith(prefixBase)) return requestUrl;
+                let prefixIndex = requestUrl.indexOf(this.config.prefix);
+                if (prefixIndex !== -1 && requestUrl.startsWith(location.origin)) {
+                    let encodedPart = requestUrl.slice(prefixIndex + this.config.prefix.length);
+                    return prefixBase + encodedPart;
+                }
+                return requestUrl;
             }
             async fetch({
                 request: e
             }) {
                 let s;
                 try {
-                    if (!e.url.startsWith(location.origin + this.config.prefix)) return await fetch(e);
+                    let normalizedUrl = this._normalizeUrl(e.url);
+                    if (!normalizedUrl.startsWith(this._prefixBase)) return await fetch(e);
+                    if (normalizedUrl !== e.url) {
+                        e = new Request(normalizedUrl, {
+                            method: e.method,
+                            headers: e.headers,
+                            body: C.includes(e.method.toUpperCase()) ? null : e.body,
+                            mode: e.mode,
+                            credentials: e.credentials,
+                            cache: e.cache,
+                            redirect: e.redirect,
+                            referrer: e.referrer,
+                            destination: e.destination
+                        });
+                    }
                     let t = new h(this.config);
                     typeof this.config.construct == "function" && this.config.construct(t, "service");
                     let w = await t.cookie.db();
